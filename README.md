@@ -1,6 +1,10 @@
 # MySQL + JDBC + Flyway Starter
 
+[![CI](https://github.com/eyupUK/mysql-jdbc-flyway-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/eyupUK/mysql-jdbc-flyway-starter/actions/workflows/ci.yml)
+
 A tiny, production‑style starter that lets you **design a MySQL schema**, **migrate with Flyway**, **seed with DataFactory/Faker**, and **test with raw JDBC** (plus Testcontainers).
+
+See [GUIDE.md](GUIDE.md) for the runtime architecture, configuration precedence, and command lifecycles.
 
 ## What you get
 - **MySQL schema**: `customers`, `products`, `orders`, `order_items`
@@ -15,6 +19,7 @@ A tiny, production‑style starter that lets you **design a MySQL schema**, **mi
 ## Requirements
 - JDK 21 or newer
 - Docker Desktop or Docker Engine, running and accessible from the command line
+- Apache Maven 3.9 or newer, available as `mvn`
 
 ## Quick start (Local MySQL)
 ```bash
@@ -22,23 +27,26 @@ A tiny, production‑style starter that lets you **design a MySQL schema**, **mi
 docker compose up -d mysql
 
 # 2) Run migrations (Flyway)
-./mvnw -Pdev \
+mvn -Pdev \
   -Denv.DB_URL="jdbc:mysql://localhost:3306/shopdb?useSSL=false&allowPublicKeyRetrieval=true" \
   -Denv.DB_USER=shop \
   -Denv.DB_PASS=shop_pw \
   flyway:migrate
 
 # 3) Seed sample data (20 by default; override with SEED_COUNT)
-SEED_COUNT=100 ./mvnw -Pdev -Dexec.cleanupDaemonThreads=false exec:java
+SEED_COUNT=100 mvn -Pdev -Dexec.cleanupDaemonThreads=false exec:java
 ```
 
 ## Run tests (no local MySQL required)
 ```bash
-./mvnw -q -DskipTests=false test
+mvn -q -DskipTests=false test
 ```
 
 This uses **Testcontainers** to launch MySQL in Docker, applies Flyway migrations, then does JDBC CRUD.
-The Maven Wrapper downloads Maven automatically on its first run.
+The bundled Maven Wrapper remains available as `./mvnw` when a global Maven installation is unavailable.
+
+## Continuous Integration
+GitHub Actions runs the full Testcontainers test suite on every push and pull request using Java 21. The workflow uses the Maven Wrapper and verifies Docker before starting the tests.
 
 ## Config
 - Env vars or system props:
@@ -50,7 +58,7 @@ The Maven Wrapper downloads Maven automatically on its first run.
 `DataMasker` replaces every customer email, first name, and last name with deterministic placeholders. It is intended for a non-production copy only and never runs as part of migrations or seeding.
 
 ```bash
-./mvnw -Pmask -Dexec.args="--confirm" exec:java
+mvn -Pmask -Dexec.args="--confirm" exec:java
 ```
 
 Set `DB_URL`, `DB_USER`, and `DB_PASS` as environment variables or system properties to target a database other than the local defaults. The operation is idempotent: re-running it does not alter already masked rows.
