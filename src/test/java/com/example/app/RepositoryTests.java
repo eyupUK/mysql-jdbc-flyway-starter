@@ -13,6 +13,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import java.util.List;
 
 @Testcontainers
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
@@ -49,14 +50,20 @@ public class RepositoryTests {
     }
 
     @Test @Order(2)
+    void maskerReturnsZeroWhenThereAreNoCustomers() throws Exception {
+        Assertions.assertEquals(0, new DataMasker().maskCustomers());
+    }
+
+    @Test @Order(3)
     void crudWithJdbc() throws Exception {
         CustomerDao dao = new CustomerDao();
         long id = dao.create("alice@example.com", "Alice", "Liddell");
         Assertions.assertTrue(id > 0);
         Assertions.assertEquals(1, dao.count());
+        Assertions.assertEquals(List.of("alice@example.com"), dao.listEmails());
     }
 
-    @Test @Order(3)
+    @Test @Order(4)
     void seederCreatesOrderItems() throws Exception {
         Seeder.seed(2, 3, 4);
 
@@ -75,21 +82,41 @@ public class RepositoryTests {
         }
     }
 
-    @Test @Order(4)
+    @Test @Order(5)
     void maskerReplacesCustomerPiiAndIsIdempotent() throws Exception {
         DataMasker masker = new DataMasker();
+        try (Connection con = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
+             Statement st = con.createStatement()) {
+            st.executeUpdate("UPDATE customers SET email = CONCAT('masked+', id, '@example.invalid') WHERE id = 1");
+        }
+
         Assertions.assertEquals(3, masker.maskCustomers());
         Assertions.assertEquals(0, masker.maskCustomers());
 
         try (Connection con = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
              Statement st = con.createStatement();
              ResultSet customers = st.executeQuery("SELECT id, email, first_name, last_name FROM customers ORDER BY id")) {
+            int customerCount = 0;
             while (customers.next()) {
                 long id = customers.getLong("id");
                 Assertions.assertEquals("masked+" + id + "@example.invalid", customers.getString("email"));
                 Assertions.assertEquals("Masked", customers.getString("first_name"));
                 Assertions.assertEquals("Customer " + id, customers.getString("last_name"));
+                customerCount++;
             }
+            Assertions.assertEquals(3, customerCount);
+        }
+
+        try (Connection con = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
+             Statement st = con.createStatement();
+             ResultSet relationships = st.executeQuery("""
+                     SELECT COUNT(*)
+                     FROM order_items oi
+                     JOIN orders o ON o.id = oi.order_id
+                     JOIN customers c ON c.id = o.customer_id
+                     """)) {
+            relationships.next();
+            Assertions.assertEquals(4, relationships.getInt(1));
         }
     }
 }

@@ -27,13 +27,16 @@ public final class DataMasker {
     }
 
     public static void main(String[] args) throws Exception {
-        boolean confirmed = Arrays.stream(args).anyMatch("--confirm"::equals);
-        if (!confirmed) {
+        if (!isConfirmed(args)) {
             throw new IllegalArgumentException("Refusing to mask data without --confirm");
         }
 
         Env.loadDefaults();
         int maskedCustomers = new DataMasker().maskCustomers();
         System.out.println("Masked customers: " + maskedCustomers);
+    }
+
+    static boolean isConfirmed(String[] args) {
+        return args != null && Arrays.stream(args).anyMatch("--confirm"::equals);
     }
 }

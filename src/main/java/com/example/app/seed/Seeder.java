@@ -14,6 +14,8 @@ import java.util.Random;
 
 public class Seeder {
     public static void seed(int customers, int products, int orders) throws SQLException {
+        validateCounts(customers, products, orders);
+
         Faker faker = new Faker(Locale.UK);
         DataFactory df = new DataFactory();
         Random rnd = new Random(1234);
@@ -77,6 +79,15 @@ public class Seeder {
                 item.executeBatch();
             }
             con.commit();
+        }
+    }
+
+    static void validateCounts(int customers, int products, int orders) {
+        if (customers < 0 || products < 0 || orders < 0) {
+            throw new IllegalArgumentException("Seed counts must not be negative");
+        }
+        if (orders > 0 && (customers == 0 || products == 0)) {
+            throw new IllegalArgumentException("Orders require at least one customer and product");
         }
     }
 }
