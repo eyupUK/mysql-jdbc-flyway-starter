@@ -16,7 +16,7 @@ Maven command
   +-- -Pmask exec:java -> DataMasker -> JDBC update of customer PII
 ```
 
-The database schema is defined in `src/main/resources/db/migration`. The first migration creates customers, products, orders, and order items. Orders reference customers, and order items reference both orders and products.
+The database schema is defined in `src/main/resources/db/migration`. `V1` creates customers, products, orders, and order items. `V2` adds customer lifecycle status, and `V3` adds non-negative product inventory. Orders reference customers, and order items reference both orders and products.
 
 ## Configuration
 
@@ -66,9 +66,9 @@ SEED_COUNT=20 mvn -Pdev exec:java
 2. Configures Flyway with the resolved database connection and applies outstanding migrations.
 3. Reads `SEED_COUNT`, using `20` when it is absent.
 4. Calls `Seeder.seed(n, n * 3, n * 5)` to create customers, products, orders, and order items in one transaction.
-5. Uses JDBC to print the customer count.
+5. Uses `CustomerService` to print the customer count.
 
-The seeder is intended for a fresh development database. It creates deterministic SKU values and assumes the newly inserted customer and product IDs begin at one, so rerunning it against existing data can violate unique constraints or produce incorrect relationships.
+`Seeder` coordinates `CustomerSeeder`, `ProductSeeder`, and `OrderSeeder` on the same JDBC connection. The customer and product seeders return generated IDs, so the order seeder always references records from the current run rather than assuming IDs begin at one. Seed emails and SKUs contain UUIDs to avoid fixed-key collisions across repeated development runs.
 
 ## Why Flyway Runs First
 
@@ -78,14 +78,14 @@ Add schema changes as a new migration, for example `V2__add_customer_phone.sql`;
 
 ## JDBC Access
 
-`DB.get()` opens a JDBC connection using the resolved configuration. `CustomerDao` demonstrates the intended DAO pattern:
+`DB.get()` opens a JDBC connection using the resolved configuration. `CustomerRepository` defines the persistence contract, `CustomerDao` is its JDBC implementation, and `CustomerService` owns validation and normalization before delegation. This allows a future JPA-backed repository to replace the DAO without changing service callers.
 
 - Prepared statements bind input values safely.
 - `RETURN_GENERATED_KEYS` retrieves the identifier from an insert.
 - Try-with-resources closes every JDBC resource.
 - Queries return only the data the caller needs.
 
-The starter does not add an ORM or DI container. The goal is to make the connection, transaction, and SQL boundaries visible.
+The starter does not add an ORM or DI container. The goal is to make the connection, transaction, and SQL boundaries visible while keeping the service boundary ready for a different persistence implementation.
 
 ## Data Masking Flow
 
@@ -112,8 +112,8 @@ No local MySQL server is used. The test lifecycle is:
 1. Testcontainers connects to Docker and starts a disposable MySQL 8.4 container.
 2. Flyway applies the migrations to that container.
 3. The test setup sets `DB_URL`, `DB_USER`, and `DB_PASS` system properties so production JDBC code talks to the container.
-4. Unit tests validate `Env`, `Seeder` input validation, and data-mask confirmation parsing without a database.
-5. Integration tests validate the schema, DAO CRUD, seeding, masking, and foreign-key relationships against MySQL.
+4. Unit tests validate `Env`, `Seeder` input validation, data-mask confirmation parsing, and customer-service validation without a database.
+5. Integration tests validate all migrations, service-to-DAO CRUD, table-specific seeding, masking, inventory, and foreign-key relationships against MySQL.
 6. Testcontainers removes the disposable container when the JVM exits.
 
 This split gives fast coverage for deterministic logic while retaining real-database coverage for SQL, migrations, and JDBC behavior.
@@ -141,5 +141,5 @@ Use `./mvnw` in place of `mvn` on a machine without a global Maven installation.
 - `mvn: command not found`: use `./mvnw test` or install Maven 3.9 or newer.
 - Testcontainers cannot find Docker: start Docker Desktop or Docker Engine and confirm `docker info` succeeds.
 - A local migration cannot connect: verify the Compose container is running and that `DB_URL`, `DB_USER`, and `DB_PASS` match its configuration.
-- Seeding reports duplicate SKU or email errors: use a fresh development database, or add an explicit reset/cleanup workflow before reseeding.
+- Seeding reports duplicate SKU or email errors: the generated values are unique per run, so inspect any custom seeder or existing data constraints that were added locally.
 - The mask command fails immediately: pass the exact argument `-Dexec.args="--confirm"`; this guard is intentional.

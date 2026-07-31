@@ -6,7 +6,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class CustomerDao {
+public class CustomerDao implements CustomerRepository {
     public long create(String email, String first, String last) throws SQLException {
         String sql = "INSERT INTO customers(email, first_name, last_name) VALUES(?,?,?)";
         try (Connection con = DB.get();

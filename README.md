@@ -8,10 +8,10 @@ See [GUIDE.md](GUIDE.md) for the runtime architecture, configuration precedence,
 
 ## What you get
 - **MySQL schema**: `customers`, `products`, `orders`, `order_items`
-- **Migrations**: `src/main/resources/db/migration/V1__initial_schema.sql`
-- **Seeding**: Java `Seeder` uses DataFactory + Faker
+- **Migrations**: versioned schema changes through `V3__add_product_stock_quantity.sql`
+- **Seeding**: table-specific customer, product, and order seeders coordinated by `Seeder`
 - **Data masking**: irreversible, idempotent customer PII masking for non-production copies
-- **JDBC DAO**: raw JDBC `CustomerDao`
+- **Service layer**: `CustomerService` validates customer input before delegating to the JDBC DAO
 - **Tests**: JUnit 5 + Testcontainers spins up MySQL, runs Flyway, and verifies CRUD and seeding
 - **Docker**: `docker-compose.yml` for local MySQL
 - **Flyway plugin**: `mvn -Pdev flyway:migrate`
@@ -64,12 +64,12 @@ mvn -Pmask -Dexec.args="--confirm" exec:java
 Set `DB_URL`, `DB_USER`, and `DB_PASS` as environment variables or system properties to target a database other than the local defaults. The operation is idempotent: re-running it does not alter already masked rows.
 
 ## Exploring JDBC
-See `src/main/java/com/example/app/dao/CustomerDao.java` for a small DAO with prepared statements and generated keys.
+`CustomerRepository` is the storage boundary, `CustomerDao` is its JDBC implementation, and `CustomerService` is the application-facing layer. This keeps business validation independent of the persistence mechanism.
 
 ## Extending
-- Add new migrations as `V2__*.sql`, `V3__*.sql`, etc.
-- Add seeders per table or write SQL seed files and run them with Flyway callbacks.
-- Wrap DAOs with a service layer or swap in JPA later—this starter stays framework‑agnostic.
+- Add schema changes as new migrations, such as `V4__*.sql`; never rewrite an applied migration.
+- Add a focused seeder per table and coordinate it through `Seeder`, or use SQL seed files through Flyway callbacks when seed data belongs to the migration lifecycle.
+- Add services over repository interfaces. A JPA repository can later replace a JDBC DAO without changing the service contract.
 
 ---
 

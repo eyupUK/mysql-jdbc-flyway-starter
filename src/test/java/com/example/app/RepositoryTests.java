@@ -1,8 +1,8 @@
 package com.example.app;
 
-import com.example.app.dao.CustomerDao;
 import com.example.app.mask.DataMasker;
 import com.example.app.seed.Seeder;
+import com.example.app.service.CustomerService;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.*;
 import org.testcontainers.containers.MySQLContainer;
@@ -47,6 +47,19 @@ public class RepositoryTests {
             while (rs.next()) count++;
             Assertions.assertTrue(count >= 4, "Expected at least 4 tables");
         }
+
+        try (Connection con = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
+             Statement st = con.createStatement();
+             ResultSet columns = st.executeQuery("""
+                     SELECT COUNT(*)
+                     FROM information_schema.columns
+                     WHERE table_schema = DATABASE()
+                       AND ((table_name = 'customers' AND column_name = 'status')
+                         OR (table_name = 'products' AND column_name = 'stock_quantity'))
+                     """)) {
+            columns.next();
+            Assertions.assertEquals(2, columns.getInt(1));
+        }
     }
 
     @Test @Order(2)
@@ -56,11 +69,11 @@ public class RepositoryTests {
 
     @Test @Order(3)
     void crudWithJdbc() throws Exception {
-        CustomerDao dao = new CustomerDao();
-        long id = dao.create("alice@example.com", "Alice", "Liddell");
+        CustomerService customers = new CustomerService();
+        long id = customers.register(" Alice@Example.com ", " Alice ", " Liddell ");
         Assertions.assertTrue(id > 0);
-        Assertions.assertEquals(1, dao.count());
-        Assertions.assertEquals(List.of("alice@example.com"), dao.listEmails());
+        Assertions.assertEquals(1, customers.count());
+        Assertions.assertEquals(List.of("alice@example.com"), customers.listEmails());
     }
 
     @Test @Order(4)
@@ -79,6 +92,25 @@ public class RepositoryTests {
              ResultSet items = st.executeQuery("SELECT COUNT(*) FROM order_items")) {
             items.next();
             Assertions.assertEquals(4, items.getInt(1));
+        }
+
+        try (Connection con = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
+             Statement st = con.createStatement();
+             ResultSet inventory = st.executeQuery("SELECT COUNT(*) FROM products WHERE stock_quantity BETWEEN 10 AND 500")) {
+            inventory.next();
+            Assertions.assertEquals(3, inventory.getInt(1));
+        }
+
+        try (Connection con = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
+             Statement st = con.createStatement();
+             ResultSet seededOrderCustomers = st.executeQuery("""
+                     SELECT COUNT(*)
+                     FROM orders o
+                     JOIN customers c ON c.id = o.customer_id
+                     WHERE c.email LIKE 'seed-%@example.test'
+                     """)) {
+            seededOrderCustomers.next();
+            Assertions.assertEquals(4, seededOrderCustomers.getInt(1));
         }
     }
 
