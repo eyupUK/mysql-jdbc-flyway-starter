@@ -11,7 +11,8 @@
     <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <junit.version>5.10.2</junit.version>
-    <testcontainers.version>1.20.1</testcontainers.version>
+    <testcontainers.version>2.0.5</testcontainers.version>
+    <commons-lang3.version>3.20.0</commons-lang3.version>
     <slf4j.version>2.0.13</slf4j.version>
     <flyway.version>10.16.0</flyway.version>
   </properties>
@@ -28,6 +29,11 @@
     <dependency>
       <groupId>org.flywaydb</groupId>
       <artifactId>flyway-core</artifactId>
+      <version>${flyway.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.flywaydb</groupId>
+      <artifactId>flyway-mysql</artifactId>
       <version>${flyway.version}</version>
     </dependency>
 
@@ -49,6 +55,11 @@
       <artifactId>datafactory</artifactId>
       <version>0.8</version>
     </dependency>
+    <dependency>
+      <groupId>org.apache.commons</groupId>
+      <artifactId>commons-lang3</artifactId>
+      <version>${commons-lang3.version}</version>
+    </dependency>
 
     <!-- Test stack -->
     <dependency>
@@ -59,13 +70,13 @@
     </dependency>
     <dependency>
       <groupId>org.testcontainers</groupId>
-      <artifactId>junit-jupiter</artifactId>
+      <artifactId>testcontainers-junit-jupiter</artifactId>
       <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.testcontainers</groupId>
-      <artifactId>mysql</artifactId>
+      <artifactId>testcontainers-mysql</artifactId>
       <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
@@ -95,6 +106,13 @@
         <groupId>org.flywaydb</groupId>
         <artifactId>flyway-maven-plugin</artifactId>
         <version>${flyway.version}</version>
+        <dependencies>
+          <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+            <version>${flyway.version}</version>
+          </dependency>
+        </dependencies>
         <configuration>
           <url>${env.DB_URL}</url>
           <user>${env.DB_USER}</user>
@@ -115,6 +133,20 @@
         <env.DB_USER>shop</env.DB_USER>
         <env.DB_PASS>shop_pw</env.DB_PASS>
       </properties>
+    </profile>
+    <profile>
+      <id>mask</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <configuration>
+              <mainClass>com.example.app.mask.DataMasker</mainClass>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
     </profile>
   </profiles>
 </project>

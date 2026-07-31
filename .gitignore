@@ -3,5 +3,8 @@ target/
 *.iml
 *.log
 data/
-.mvn/
+.mvn/*
+!.mvn/wrapper/
+!.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
 .midea/

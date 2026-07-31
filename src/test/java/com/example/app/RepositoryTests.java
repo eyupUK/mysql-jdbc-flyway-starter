@@ -1,6 +1,8 @@
 package com.example.app;
 
 import com.example.app.dao.CustomerDao;
+import com.example.app.mask.DataMasker;
+import com.example.app.seed.Seeder;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.*;
 import org.testcontainers.containers.MySQLContainer;
@@ -52,5 +54,42 @@ public class RepositoryTests {
         long id = dao.create("alice@example.com", "Alice", "Liddell");
         Assertions.assertTrue(id > 0);
         Assertions.assertEquals(1, dao.count());
+    }
+
+    @Test @Order(3)
+    void seederCreatesOrderItems() throws Exception {
+        Seeder.seed(2, 3, 4);
+
+        try (Connection con = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
+             Statement st = con.createStatement();
+             ResultSet orders = st.executeQuery("SELECT COUNT(*) FROM orders")) {
+            orders.next();
+            Assertions.assertEquals(4, orders.getInt(1));
+        }
+
+        try (Connection con = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
+             Statement st = con.createStatement();
+             ResultSet items = st.executeQuery("SELECT COUNT(*) FROM order_items")) {
+            items.next();
+            Assertions.assertEquals(4, items.getInt(1));
+        }
+    }
+
+    @Test @Order(4)
+    void maskerReplacesCustomerPiiAndIsIdempotent() throws Exception {
+        DataMasker masker = new DataMasker();
+        Assertions.assertEquals(3, masker.maskCustomers());
+        Assertions.assertEquals(0, masker.maskCustomers());
+
+        try (Connection con = DriverManager.getConnection(mysql.getJdbcUrl(), mysql.getUsername(), mysql.getPassword());
+             Statement st = con.createStatement();
+             ResultSet customers = st.executeQuery("SELECT id, email, first_name, last_name FROM customers ORDER BY id")) {
+            while (customers.next()) {
+                long id = customers.getLong("id");
+                Assertions.assertEquals("masked+" + id + "@example.invalid", customers.getString("email"));
+                Assertions.assertEquals("Masked", customers.getString("first_name"));
+                Assertions.assertEquals("Customer " + id, customers.getString("last_name"));
+            }
+        }
     }
 }
